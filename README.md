@@ -1,4 +1,4 @@
-# SRS for Image Sync
+# Software Requirements Specification for Image Sync
 
 1. Introduction
 1.1 Purpose
