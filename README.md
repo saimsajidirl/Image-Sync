@@ -1,199 +1,145 @@
-# one-task-per-time-celery
+# SRS for Image Sync
 
-Sure! Here is the full code setup for an image resizing task using Celery in Django. This includes all necessary configurations, models, views, and templates to get it running smoothly.
-1. Celery Configuration (your_project/celery.py)
+1. Introduction
+1.1 Purpose
 
-python
+The purpose of this document is to define the functional and non-functional requirements for an image upload and resize service, which allows users to upload images through a web interface. The images are processed and resized in the background using Celery and Redis for task queuing and caching. This document provides a detailed description of the system's behavior, constraints, and architecture.
+1.2 Scope
 
-# your_project/celery.py
-from __future__ import absolute_import, unicode_literals
-import os
-from celery import Celery
+The system enables users to upload images via a web interface, and these images are stored on the server and resized to a specified dimension. Celery tasks handle resizing asynchronously to ensure responsiveness, and Redis is used to cache processed images to prevent duplicate processing. The resized images are stored with a unique hash-based filename to avoid filename conflicts.
+1.3 Overview
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project.settings')
+This system will:
 
-app = Celery('your_project')
-app.config_from_object('django.conf:settings', namespace='CELERY')
-app.autodiscover_tasks()
+    Allow users to upload up to two images at once.
+    Prevent duplicate images from being re-uploaded and re-processed.
+    Process images in the background for resizing using a Celery worker.
+    Cache the results of resized images in Redis.
+    Display uploaded and processed images on the web interface.
 
-2. Django Settings (your_project/settings.py)
+2. System Architecture
+2.1 System Components
 
-Add the Celery broker configuration in your Django settings.
+    Django Web Server: Manages the web application, routes requests, and serves HTML templates.
+    Celery: Handles asynchronous task processing for image resizing.
+    Redis: Used as the broker for Celery and as a cache to store the paths of resized images.
+    PostgreSQL/MySQL Database: Stores metadata of uploaded images, including the file name and upload timestamp.
 
-python
+2.2 Data Flow
 
-# your_project/settings.py
-CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Update this if your Redis setup is different
+    Image Upload: Users upload images via a form. Images are saved in the uploaded_images/ directory.
+    Celery Task: After an upload, a Celery task resizes the image in the background.
+    Redis Cache: The resized image path is cached in Redis using an MD5 hash for quick retrieval.
+    Database Storage: Metadata (e.g., file name, upload timestamp, and hash) is saved in the database.
 
-# Ensure media files are accessible
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+3. Functional Requirements
+3.1 User Interface
+3.1.1 Image Upload Form
 
-3. Celery Task for Image Resizing (your_app/tasks.py)
+    The form must accept two image files (image1 and image2).
+    Only .jpg, .jpeg, and .png file types are supported.
 
-python
+3.2 Image Upload and Storage
 
-# your_app/tasks.py
-from celery import shared_task, current_app
-import redis
-from PIL import Image
-import os
+    FR-1: The system must save uploaded images in a directory (uploaded_images/) on the server.
+    FR-2: The system must check for duplicates by file name. If an image with the same file name exists, it should skip re-uploading.
 
-# Connect to Redis
-redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
+3.3 Background Image Resizing
 
-@shared_task(bind=True)
-def resize_image(self, image_path, output_size=(300, 300)):
-    """Resize the image to the specified output size."""
-    print(f"Processing image: {image_path}")
-    img = Image.open(image_path)
-    img = img.resize(output_size)
-    
-    # Save the resized image
-    base, ext = os.path.splitext(image_path)
-    output_path = f"{base}_resized{ext}"
-    img.save(output_path)
-    print(f"Image saved to: {output_path}")
+    FR-3: Each valid uploaded image should trigger an asynchronous Celery task to resize it to 1920x1080 pixels.
+    FR-4: The resizing task should be uniquely identified by an MD5 hash generated from the file contents and name.
+    FR-5: The resized image should be stored in the same directory (uploaded_images/) with the filename format <hash>_resized.jpg.
 
-def add_resize_task(image_path):
-    # Fetch the previous task ID if it exists
-    previous_task_id = redis_client.get('latest_task_id')
+3.4 Caching with Redis
 
-    # Revoke the previous task if it's still active
-    if previous_task_id:
-        current_app.control.revoke(previous_task_id.decode(), terminate=True)
+    FR-6: The system must cache the output path of resized images in Redis to prevent duplicate processing.
+    FR-7: The system must check the Redis cache before creating a new resizing task.
 
-    # Launch a new resize task
-    new_task = resize_image.apply_async(args=[image_path])
+3.5 Database Management
 
-    # Store the new task ID in Redis
-    redis_client.set('latest_task_id', new_task.id)
-    return new_task
+    FR-8: Store metadata of each uploaded image in a database table, UploadedImage, with fields:
+        image (file path),
+        uploaded_at (timestamp),
+        hash (unique MD5 hash for each image).
 
-4. Image Upload Form (your_app/forms.py)
+3.6 Error Handling and Logging
 
-python
+    FR-9: If an image fails to resize, the Celery task should retry and log the error in a log file.
+    FR-10: The system should handle exceptions gracefully and return informative error messages to users (e.g., "Image already exists").
 
-# your_app/forms.py
-from django import forms
+3.7 API Endpoints
 
-class ImageUploadForm(forms.Form):
-    image = forms.ImageField()
+    FR-11: Provide a JSON response after an upload, listing successfully uploaded images and their status.
 
-5. Image Upload View (your_app/views.py)
+3.8 Display Current Images
 
-This view will handle image upload and trigger the resizing task.
+    FR-12: Render a list of all previously uploaded images on the web interface.
 
-python
+4. Non-Functional Requirements
+4.1 Performance Requirements
 
-# your_app/views.py
-from django.shortcuts import render
-from django.http import JsonResponse
-from .tasks import add_resize_task
-from .forms import ImageUploadForm
-import os
+    NFR-1: The system should handle up to 100 concurrent image uploads.
+    NFR-2: Resizing tasks should complete within 3 seconds on average for a standard 1920x1080 output size.
 
-def upload_image(request):
-    if request.method == 'POST':
-        form = ImageUploadForm(request.POST, request.FILES)
-        if form.is_valid():
-            image = request.FILES['image']
-            image_path = os.path.join('media/uploaded_images/', image.name)
+4.2 Reliability and Availability
 
-            # Save the uploaded image to the media directory
-            with open(image_path, 'wb+') as destination:
-                for chunk in image.chunks():
-                    destination.write(chunk)
+    NFR-3: Redis cache must have high availability to support task deduplication and faster processing.
+    NFR-4: Celery worker tasks should retry up to three times in case of errors.
 
-            # Trigger the image resizing task
-            add_resize_task(image_path)
+4.3 Security
 
-            return JsonResponse({'status': 'Image uploaded and resizing task added!'})
-    else:
-        form = ImageUploadForm()
-    return render(request, 'upload.html', {'form': form})
+    NFR-5: Ensure file uploads are secure by checking for valid image types and sizes.
+    NFR-6: Prevent unauthorized access to the upload page by restricting it to authenticated users.
 
-6. URL Configuration (your_project/urls.py)
+4.4 Maintainability
 
-Add a URL for the image upload view.
+    NFR-7: Code should be well-documented and follow PEP 8 guidelines for Python.
+    NFR-8: Separate logic into individual functions and classes to ensure modularity.
 
-python
+4.5 Usability
 
-# your_project/urls.py
-from django.conf import settings
-from django.conf.urls.static import static
-from django.urls import path
-from your_app.views import upload_image
+    NFR-9: Users should receive clear feedback on the success or failure of image uploads.
 
-urlpatterns = [
-    path('upload-image/', upload_image, name='upload-image'),
-]
+5. System Models
+5.1 Database Model
 
-# Serve media files during development
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+The UploadedImage model will have the following fields:
 
-7. HTML Template for Image Upload (templates/upload.html)
+    image: Path to the uploaded image.
+    uploaded_at: Timestamp of the upload.
+    hash: Unique hash identifier for deduplication.
 
-Create the upload.html file to allow users to upload images.
+5.2 Redis Cache
 
-html
+    Key: MD5 hash of the image file.
+    Value: Path to the resized image.
+    Expiry: Cache entries can be set to expire if storage becomes an issue.
 
-<!-- templates/upload.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Upload</title>
-</head>
-<body>
-    <h1>Upload an Image</h1>
-    <form method="POST" enctype="multipart/form-data">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Upload</button>
-    </form>
-</body>
-</html>
+6. Interface Requirements
+6.1 Frontend
 
-8. Create the Media Directory
+    A single HTML template (upload.html) with:
+        A file upload form (fields image1 and image2).
+        A display area for showing previously uploaded images.
 
-Make sure the media/uploaded_images/ directory exists. This is where uploaded images will be saved, and the resized images will be outputted.
+6.2 Backend (Django)
 
-bash
+    URL Endpoints:
+        /upload-image/: Endpoint for the image upload form.
+        POST /upload-image/: Handles form submission and returns a JSON response on success or failure.
 
-mkdir -p media/uploaded_images/
+7. Constraints
+7.1 System Constraints
 
-9. Running the Application
+    The server must have Celery and Redis installed and configured.
+    Images are limited in size (suggested: max 5 MB per image).
 
-    Start Redis Server:
+7.2 Design Constraints
 
-    bash
+    The system must use Django for the web application framework and Celery for asynchronous task handling.
+    Redis should serve both as the Celery broker and caching solution.
 
-redis-server
+8. Assumptions and Dependencies
 
-Start Celery Worker:
-
-bash
-
-celery -A your_project worker --loglevel=info
-
-Run Django Development Server:
-
-bash
-
-    python manage.py runserver
-
-10. Testing the Setup
-
-    Open your browser and go to http://127.0.0.1:8000/upload-image/.
-    Use the upload form to submit an image.
-    The image will be saved in media/uploaded_images/, and a resizing task will be queued. If you upload a new image before the previous task completes, the previous task will be canceled, and only the latest task will run.
-
-This setup should now allow you to use Celery in Django to handle image resizing tasks, ensuring that only the latest task is processed. Let me know if you have any further questions!
-
-
-
-
-
+    Dependencies: Celery, Redis, Pillow, Django.
+    Assumptions: Users are authenticated before uploading images.
