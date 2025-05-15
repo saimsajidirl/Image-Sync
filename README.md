@@ -94,16 +94,6 @@ DJANGO_SECRET_KEY=your_secret_key
 
 ---
 
-## 🧪 Testing
-
-Run unit tests using:
-
-```bash
-python manage.py test
-```
-
----
-
 ## 📁 Directory Structure
 
 ```
@@ -141,4 +131,4 @@ Contributions are welcome! Please fork the repository and submit a pull request.
 
 ## 📬 Contact
 
-For support or business inquiries, contact: `your.email@example.com`
+For support or business inquiries, contact: `saimsajidirl@gmail.com`
