@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Sync - Duplicate Removal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --hue-base: 220;
+            --saturation: 70%;
+            --lightness: 50%;
+            --shadow-depth: 0.5rem;
+            --glow-intensity: 0.3;
+            --anim-speed: 0.8s;
+            --border-radius: 12px;
+            --gradient-angle: 45deg;
+            --noise-opacity: 0.05;
+            --pulse-frequency: 2s;
+        }
+
+        * {
+            color: #000000 !important; /* Force all text to black */
+        }
+
+        body {
+            background: linear-gradient(
+                var(--gradient-angle),
+                hsl(var(--hue-base), var(--saturation), calc(var(--lightness) - 10%)),
+                hsl(calc(var(--hue-base) + 30), var(--saturation), calc(var(--lightness) + 10%))
+            );
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: url('data:image/svg+xml,%3Csvg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%" height="100%" filter="url(%23noiseFilter)" opacity="0.1"/%3E%3C/svg%3E');
+            opacity: var(--noise-opacity);
+            pointer-events: none;
+            animation: noiseShift 10s infinite linear;
+        }
+
+        @keyframes noiseShift {
+            0% { transform: translate(0, 0); }
+            50% { transform: translate(10px, -10px); }
+            100% { transform: translate(0, 0); }
+        }
+
+        .container {
+            --container-glow: hsl(var(--hue-base), 80%, 60%);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: var(--border-radius);
+            box-shadow:
+                0 0 20px rgba(0, 0, 0, 0.2),
+                inset 0 0 10px rgba(255, 255, 255, 0.5),
+                0 0 40px calc(var(--glow-intensity) * 1rem) var(--container-glow);
+            padding: 2rem;
+            max-width: 32rem;
+            width: 100%;
+            position: relative;
+            isolation: isolate;
+            overflow: hidden;
+            transform: perspective(1000px) rotateX(2deg) rotateY(2deg);
+            transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        .container:hover {
+            transform: perspective(1000px) rotateX(0) rotateY(0) scale(1.02);
+        }
+
+        .container::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(
+                circle at 50% 50%,
+                transparent 0%,
+                rgba(255, 255, 255, 0.2) 70%,
+                transparent 100%
+            );
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .container:hover::after {
+            opacity: 1;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 2rem;
+            position: relative;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: linear-gradient(
+                to right,
+                hsl(var(--hue-base), 80%, 40%),
+                hsl(calc(var(--hue-base) + 60), 80%, 60%)
+            );
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: #000000 !important; /* Ensure black text */
+            animation: textGlow 3s infinite alternate;
+        }
+
+        @keyframes textGlow {
+            0% { filter: drop-shadow(0 0 5px hsl(var(--hue-base), 80%, 60%)); }
+            100% { filter: drop-shadow(0 0 10px hsl(var(--hue-base), 80%, 80%)); }
+        }
+
+        h1::before {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            color: rgba(0, 0, 0, 0.3) !important; /* Black shadow */
+            transform: translate(2px, 2px);
+            z-index: -1;
+            filter: blur(2px);
+        }
+
+        .upload-container {
+            position: relative;
+            padding: 1.5rem;
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.1),
+                rgba(255, 255, 255, 0.05)
+            );
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: calc(var(--border-radius) / 1.5);
+            transition: all var(--anim-speed) cubic-bezier(0.23, 1, 0.32, 1);
+            transform-style: preserve-3d;
+        }
+
+        .upload-container:hover {
+            transform: translateZ(20px) scale(1.03);
+            box-shadow:
+                0 10px 20px rgba(0, 0, 0, 0.15),
+                inset 0 0 15px rgba(255, 255, 255, 0.3);
+        }
+
+        .upload-container::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: conic-gradient(
+                from 0deg,
+                hsl(var(--hue-base), 80%, 60%),
+                transparent,
+                hsl(calc(var(--hue-base) + 90), 80%, 60%),
+                transparent
+            );
+            opacity: 0.3;
+            border-radius: inherit;
+            animation: borderSpin 5s infinite linear;
+            z-index: -1;
+        }
+
+        @keyframes borderSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        h2 {
+            font  font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            position: relative;
+            transition: color 0.3s ease;
+        }
+
+        .upload-container:hover h2 {
+            color: #000000 !important; /* Ensure black text */
+        }
+
+        input[type="file"] {
+            position: relative;
+            z-index: 1;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 8px;
+            padding: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        input[type="file"]::file-selector-button {
+            background: linear-gradient(
+                to right,
+                hsl(var(--hue-base), 80%, 50%),
+                hsl(calc(var(--hue-base) + 30), 80%, 60%)
+            );
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            color: #000000 !important; /* Black text */
+            font-weight: 500;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        input[type="file"]::file-selector-button::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+                to right,
+                transparent,
+                rgba(255, 255, 255, 0.3),
+                transparent
+            );
+            transform: translateX(-100%);
+            transition: transform 0.4s ease;
+        }
+
+        input[type="file"]::file-selector-button:hover::after {
+            transform: translateX(100%);
+        }
+
+        button {
+            position: relative;
+            background: linear-gradient(
+                var(--gradient-angle),
+                hsl(var(--hue-base), 80%, 50%),
+                hsl(calc(var(--hue-base) + 60), 80%, 60%)
+            );
+            color: #000000 !important; /* Black text */
+            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            width: 100%;
+            cursor: pointer;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            transform-style: preserve-3d;
+        }
+
+        button:hover {
+            transform: translateZ(10px) scale(1.05);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(
+                circle at 50% 50%,
+                rgba(255, 255, 255, 0.3),
+                transparent
+            );
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        button:hover::before {
+            opacity: 1;
+        }
+
+        #preview-section {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: var(--border-radius);
+            position: relative;
+            transition: opacity 0.5s ease;
+        }
+
+        #preview-section.hidden {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .image-preview {
+            max-width: 300px;
+            max-height: 300px;
+            object-fit: contain;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            position: relative;
+            z-index: 1;
+            transition: all 0.5s ease;
+            animation: imagePulse var(--pulse-frequency) infinite;
+        }
+
+        @keyframes imagePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .image-preview::before {
+            content: '';
+            position: absolute;
+            inset: -10px;
+            background: conic-gradient(
+                from 0deg,
+                hsl(var(--hue-base), 80%, 60%),
+                transparent,
+                hsl(calc(var(--hue-base) + 90), 80%, 60%),
+                transparent
+            );
+            border-radius: inherit;
+            z-index: -1;
+            animation: borderSpin 4s infinite linear;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 1rem;
+                transform: perspective(800px) rotateX(1deg) rotateY(1deg);
+            }
+
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            .image-preview {
+                max-width: 200px;
+                max-height: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 data-text="Image Sync - Duplicate Removal">Image Sync - Duplicate Removal</h1>
+
+        <!-- Upload Form -->
+        <form id="upload-form" method="POST" enctype="multipart/form-data" class="space-y-6">
+            <div class="upload-container">
+                <h2>Upload Images</h2>
+                <input type="file" name="images" accept="image/*" multiple required>
+            </div>
+            <button type="button" id="process-btn" class="hidden">Process Images</button>
+        </form>
+
+        <!-- Preview and Download Section -->
+        <div id="preview-section" class="text-center hidden">
+            <h2>Result Image (Duplicates Removed)</h2>
+            <img id="result-image" src="" alt="Result Image" class="image-preview mx-auto">
+            <button id="download-btn" class="mt-4">Download Image</button>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.querySelector('input[name="images"]');
+        const processBtn = document.getElementById('process-btn');
+        const previewSection = document.getElementById('preview-section');
+        const resultImage = document.getElementById('result-image');
+        const downloadBtn = document.getElementById('download-btn');
+
+        // Show Process button when files are selected
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                processBtn.classList.remove('hidden');
+            } else {
+                processBtn.classList.add('hidden');
+            }
+        });
+
+        // Simulate processing and show preview
+        processBtn.addEventListener('click', () => {
+            const files = fileInput.files;
+            if (files.length > 0) {
+                // For demo, show first image as result
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    resultImage.src = e.target.result;
+                    previewSection.classList.remove('hidden');
+                };
+                reader.readAsDataURL(files[0]);
+            }
+        });
+
+        // Download the result image
+        downloadBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.href = resultImage.src;
+            link.download = 'deduplicated_image.png';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    </script>
+</body>
+</html>

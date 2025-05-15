@@ -1,0 +1,5 @@
+pillow
+celery
+redis
+django
+django_redis
