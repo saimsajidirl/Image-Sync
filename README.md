@@ -73,7 +73,7 @@ Visit: `http://localhost:8000/upload-image/`
 
 ## 🛠 Functional Requirements
 
-- ✅ Upload validation for image format and size (max 5MB).
+- ✅ Upload validation for image format and size.
 - ✅ Duplicate checking before storage.
 - ✅ Asynchronous image processing (Celery).
 - ✅ Redis caching to avoid duplicate processing.
