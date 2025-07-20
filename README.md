@@ -1,3 +1,5 @@
+![Image Sync Logo](media/imagesync.png)
+
 # 🖼️ Image Sync
 
 **Image Sync** is a Django-based web application designed for seamless image uploads and background resizing. It intelligently detects duplicate images using an MD5 hash and uses Celery and Redis for asynchronous processing and caching.
@@ -65,9 +67,11 @@ celery -A image_sync worker --loglevel=info
 
 Visit: `http://localhost:8000/upload-image/`
 
-- Select up to two `.jpg`, `.jpeg`, or `.png` files.
-- Submit the form to upload and process images.
-- View results and resized images instantly.
+- Upload **exactly two** `.jpg`, `.jpeg`, or `.png` files using the modern web interface.
+- If both images have the **same name**, they will be merged side by side and the merged image will be displayed in the UI, with a download link.
+- If the images have **different names**, a message will be shown and no merge will occur.
+- The UI is fully powered by JavaScript (AJAX/fetch), providing instant feedback and updates.
+- All previously uploaded images are listed below the upload form.
 
 ---
 
