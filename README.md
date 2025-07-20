@@ -42,7 +42,7 @@
 ## 📦 Installation
 
 ```bash
-git clone https://github.com/your-username/image-sync.git
+git clone https://github.com/saimsajidirl/image-sync.git
 cd image-sync
 python -m venv venv
 source venv/bin/activate
@@ -91,27 +91,11 @@ Visit: `http://localhost:8000/upload-image/`
 Set your environment variables:
 
 ```env
+
 REDIS_URL=redis://localhost:6379
 CELERY_BROKER_URL=redis://localhost:6379/0
 DJANGO_SECRET_KEY=your_secret_key
 ```
-
----
-
-## 📁 Directory Structure
-
-```
-image_sync/
-├── uploaded_images/       # Directory for storing uploaded and resized images
-├── templates/
-│   └── upload.html        # Image upload frontend
-├── core/
-│   ├── models.py          # UploadedImage model
-│   ├── views.py           # Upload logic and API response
-│   └── tasks.py           # Celery resizing task
-```
-
----
 
 ## 🔐 Security
 
